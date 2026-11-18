@@ -67,6 +67,17 @@ The helper only accepts two job types (`prepare`, `render`) with validated
 settings, so it never runs arbitrary commands. Remove it any time with
 `python3 scripts/install_helper.py --uninstall`.
 
+## No computer? Use it from an iPad / phone via Claude Code (cloud)
+
+1. Open **Claude Code** (claude.ai/code, or Code in the Claude app) and connect this GitHub repo.
+2. Edit the cloud environment: under **Network access**, keep *Allow package managers* and add
+   these allowed domains: `youtube.com`, `googlevideo.com`, `ytimg.com`, `huggingface.co`, `hf.co`
+   (or choose **Full**).
+3. Ask: *"Read SKILL.md and make 5 shorts from <YouTube link>"*.
+
+Everything runs in Claude's cloud. Note: YouTube sometimes blocks downloads from cloud servers
+("confirm you're not a bot"). If that happens, use the helper on a home computer instead.
+
 ## Three ways to pick moments
 
 1. **As a Claude skill (recommended, free).** Upload this folder as a skill, or use it in Claude Code. Claude reads the transcript and picks the clips like an editor would. No API key needed. See [`SKILL.md`](SKILL.md).
