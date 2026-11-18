@@ -54,6 +54,21 @@ def run() -> int:
         print(f"{BAD} {e}")
         problems += 1
 
+    from .tools import YTDLP_BIN, deno
+    try:
+        import subprocess
+        vcmd = [str(YTDLP_BIN)] if YTDLP_BIN.exists() else [sys.executable, "-m", "yt_dlp"]
+        v = subprocess.run(vcmd + ["--version"], capture_output=True, text=True, timeout=60)
+        ver = (v.stdout or "").strip().splitlines()[-1] if v.stdout.strip() else "?"
+        print(f"{OK} yt-dlp {ver} ({'standalone app' if YTDLP_BIN.exists() else 'pip'})")
+    except Exception as e:
+        print(f"{WARN} yt-dlp check failed: {e}")
+    print(f"{OK} deno (YouTube JS runtime)" if deno() else
+          f"{WARN} deno missing → YouTube downloads may fail; run: python3 scripts/setup.py")
+    if sys.version_info < (3, 10) and not YTDLP_BIN.exists():
+        print(f"{WARN} Python {sys.version.split()[0]} only gets an old yt-dlp → re-run setup "
+              "(it fetches the standalone app) or install Python 3.10+")
+
     fonts = sorted(p.name for p in FONTS.glob("*.tt*")) if FONTS.is_dir() else []
     print(f"{OK} {len(fonts)} caption fonts bundled" if fonts else f"{WARN} no bundled fonts (captions use system fonts)")
 
