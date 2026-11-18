@@ -40,7 +40,7 @@ def transcribe(
         print(f"  (GPU not usable: {e}; using CPU)")
         model = WhisperModel(model_size, device="cpu", compute_type="int8")
     seg_iter, info = model.transcribe(
-        str(video),
+        load_audio(video),
         language=language,
         word_timestamps=True,
         vad_filter=True,
@@ -55,6 +55,23 @@ def transcribe(
 
     save(segments, cache)
     return segments
+
+
+def load_audio(path: Path, sr: int = 16000):
+    """Decode any audio/video to 16 kHz mono float32 with ffmpeg.
+
+    Passing an array (not a path) to faster-whisper avoids PyAV, whose version
+    differs between machines (e.g. Colab ships an old one that breaks it).
+    """
+    import subprocess
+
+    import numpy as np
+
+    from .tools import ffmpeg
+
+    raw = subprocess.run([ffmpeg(), "-v", "error", "-nostdin", "-i", str(path), "-vn", "-ac", "1",
+                          "-ar", str(sr), "-f", "f32le", "-"], capture_output=True, check=True).stdout
+    return np.frombuffer(raw, np.float32).copy()
 
 
 def save(segments: list[Segment], path: Path) -> None:
