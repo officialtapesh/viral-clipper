@@ -62,6 +62,18 @@ def _prepare_url(a, work: Path) -> None:
     info = fetch_info(a.source, work)
     dur = info.get("duration") or 0
     print(f"  \"{info.get('title')}\" · {dur/60:.1f} min · {info.get('width')}x{info.get('height')}")
+    from .youtube import is_live, record_live
+    if is_live(info):
+        # Live stream: no captions yet and no end, so record the recent window locally
+        print(f"→ LIVE stream: recording the last {a.live_minutes:g} minutes")
+        src = record_live(a.source, work, a.live_minutes)
+        segs = transcribe(src, work / "transcript.json", a.whisper, a.language)
+        (work / "source.json").write_text(json.dumps({
+            "mode": "file", "path": str(src), "url": a.source, "title": info.get("title"), "live": True},
+            ensure_ascii=False, indent=1))
+        hl.export_for_agent(segs, work, a.n, a.min, a.max)
+        print(f"✓ {len(segs)} segments → {work/'transcript.txt'}  (live window recorded)")
+        return
     segs = None
     if not a.use_whisper:
         print("→ Fetching captions (no video download)")
@@ -303,6 +315,8 @@ def main(argv=None) -> None:
         sp.add_argument("--language", default=None, help="force language, e.g. hi, en")
         sp.add_argument("--use-whisper", action="store_true",
                         help="URL: ignore YouTube captions, transcribe audio with Whisper (more accurate timing)")
+        sp.add_argument("--live-minutes", type=float, default=15,
+                        help="live streams: how many recent minutes to grab (default 15)")
         sp.add_argument("--full-download", action="store_true",
                         help="URL: download the whole video instead of only the clip sections")
 

@@ -33,7 +33,7 @@ def fetch_info(url: str, work: Path) -> dict:
         raise RuntimeError(f"Couldn't read video info:\n{r.stderr[-1500:]}")
     info = json.loads(r.stdout)
     keep = {k: info.get(k) for k in ("id", "title", "duration", "width", "height", "fps", "language",
-                                      "uploader", "webpage_url")}
+                                      "uploader", "webpage_url", "is_live", "live_status")}
     keep["subtitles"] = sorted((info.get("subtitles") or {}).keys())
     keep["automatic_captions"] = sorted((info.get("automatic_captions") or {}).keys())
     work.mkdir(parents=True, exist_ok=True)
@@ -137,6 +137,47 @@ def fetch_captions(url: str, info: dict, work: Path, prefer: str | None = None) 
         return None
     print(f"  captions: {key} ({'auto' if is_auto else 'human'}), {len(words)} words")
     return words_to_segments(words)
+
+
+def is_live(info: dict) -> bool:
+    return bool(info.get("is_live")) or info.get("live_status") == "is_live"
+
+
+def record_live(url: str, work: Path, minutes: float = 15) -> Path:
+    """Grab the most recent `minutes` of a live stream (YouTube keeps a DVR
+    window), or record forward if the stream has no DVR. Returns the file."""
+    import math
+    import urllib.request
+
+    from .tools import ffmpeg
+
+    dest = (work / "live.mp4").resolve()
+    work.mkdir(parents=True, exist_ok=True)
+    r = _run(["-g", "--no-playlist", "-f", "b[height<=1080][protocol*=m3u8]/b[height<=1080]/b", url])
+    if r.returncode != 0 or not r.stdout.strip():
+        raise RuntimeError(f"Couldn't get the live stream:\n{r.stderr[-1500:]}")
+    m3u8 = r.stdout.strip().splitlines()[0]
+    secs = int(minutes * 60)
+    seg = 5.0
+    try:  # segment length → how many segments back to start
+        txt = urllib.request.urlopen(m3u8, timeout=20).read().decode("utf-8", "replace")
+        if "#EXT-X-STREAM-INF" in txt:  # master playlist → first variant
+            var = next(l for l in txt.splitlines() if l and not l.startswith("#"))
+            txt = urllib.request.urlopen(var if var.startswith("http") else m3u8.rsplit("/", 1)[0] + "/" + var,
+                                         timeout=20).read().decode("utf-8", "replace")
+        for line in txt.splitlines():
+            if line.startswith("#EXT-X-TARGETDURATION:"):
+                seg = float(line.split(":", 1)[1])
+    except Exception:
+        pass
+    back = math.ceil(secs / max(seg, 1)) + 2
+    print(f"  live: grabbing the last {minutes:g} min (segments of {seg:g}s)")
+    proc = subprocess.run([ffmpeg(), "-y", "-v", "error", "-live_start_index", str(-back), "-i", m3u8,
+                           "-t", str(secs), "-c", "copy", "-movflags", "+faststart", str(dest)],
+                          timeout=secs * 3 + 120)
+    if proc.returncode != 0 or not dest.exists() or dest.stat().st_size < 100_000:
+        raise RuntimeError("Recording the live stream failed")
+    return dest
 
 
 def download_section(url: str, start: float, end: float, work: Path, pad: float = 1.0) -> tuple[Path, float]:
