@@ -30,6 +30,18 @@ python3 scripts/clip.py run "https://youtube.com/watch?v=..." -o clips
 | One-command setup | ✅ | `python3 scripts/setup.py` (ffmpeg + fonts included) |
 | Cost | **₹0** | everything local; AI picking is optional |
 
+## Quick start (for testers)
+
+1. Unzip, and put the `viral-clipper` folder somewhere permanent (e.g. `Movies/`).
+2. **macOS:** right-click `Install Helper.command` → **Open** → **Open** (the first time only,
+   because macOS blocks double-clicking downloaded scripts).
+   **Windows:** double-click `Install Helper (Windows).bat`.
+   You only need Python 3 installed ([python.org](https://www.python.org/downloads/));
+   setup gets everything else, including its own Python 3.12 if yours is older.
+3. In the **Claude desktop app**: add the skill (`SKILL.md`, or upload this zip as a skill),
+   then connect the `viral-clipper` folder (+ → Add folder).
+4. Ask Claude: *"Make 3 shorts from https://youtube.com/watch?v=…"*
+
 ## Install
 
 ```bash
