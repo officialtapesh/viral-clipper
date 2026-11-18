@@ -46,8 +46,7 @@ def mac(uninstall: bool) -> None:
   <key>WorkingDirectory</key><string>{REPO}</string>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
-  <key>ProcessType</key><string>Background</string>
-  <key>LowPriorityIO</key><true/>
+  <key>ProcessType</key><string>Standard</string>
   <key>StandardOutPath</key><string>{log}</string>
   <key>StandardErrorPath</key><string>{log}</string>
 </dict></plist>
