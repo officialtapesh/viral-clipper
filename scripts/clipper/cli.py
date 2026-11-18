@@ -85,7 +85,7 @@ def _download_audio(url: str, work: Path) -> Path:
 
     for p in work.glob("audio.*"):
         return p
-    subprocess.run(ytdlp_cmd() + ["--no-playlist", "-f", "ba[ext=m4a]/ba", "-o", str(work / "audio.%(ext)s"), url],
+    subprocess.run(ytdlp_cmd() + ["--no-playlist", "-f", "ba[ext=m4a]/ba/b", "-o", str(work / "audio.%(ext)s"), url],
                    check=True)
     return next(work.glob("audio.*"))
 

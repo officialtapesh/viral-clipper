@@ -122,7 +122,7 @@ def make_shorts(video, url, n, min_len, max_len, language, layout, style, accura
     yield "\n".join(log_lines[-20:]), gallery, videos, "\n".join(notes)
 
 
-with gr.Blocks(title="Viral Clipper", theme=gr.themes.Soft()) as demo:
+with gr.Blocks(title="Viral Clipper") as demo:
     gr.Markdown(INTRO)
     with gr.Row():
         with gr.Column(scale=1):
