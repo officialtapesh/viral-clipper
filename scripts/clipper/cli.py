@@ -154,6 +154,8 @@ def main(argv=None) -> None:
         sp.add_argument("--whisper", default="small", help="tiny/base/small/medium/large-v3")
         sp.add_argument("--language", default=None, help="force language, e.g. hi, en")
 
+    sp = sub.add_parser("doctor", help="check this machine is ready")
+    sp.set_defaults(fn=lambda a: sys.exit(__import__("clipper.doctor", fromlist=["run"]).run()))
     sp = sub.add_parser("prepare"); shared(sp, True); prep_opts(sp); sp.set_defaults(fn=cmd_prepare)
     sp = sub.add_parser("find"); shared(sp); find_opts(sp); sp.set_defaults(fn=cmd_find)
     sp = sub.add_parser("render"); shared(sp); render_opts(sp); sp.set_defaults(fn=cmd_render)

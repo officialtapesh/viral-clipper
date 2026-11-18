@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,7 +11,11 @@ from pathlib import Path
 from . import reframe as rf
 from .captions import PRESETS, CaptionStyle, build_ass
 from .highlights import Clip
+from .tools import FONTS, ffmpeg
 from .transcribe import Segment, words_between
+
+
+DEVANAGARI = re.compile(r"[\u0900-\u097F]")
 
 
 @dataclass
@@ -83,17 +88,24 @@ def render_clip(src: Path, clip: Clip, segments: list[Segment], out_path: Path,
     ass_file = None
     if opt.captions or (opt.title and clip.title):
         style = CaptionStyle(**{**PRESETS[opt.caption_style].__dict__})
+        words = words_between(segments, clip.start, clip.end) if opt.captions else []
         if opt.font:
             style.font = opt.font
-        words = words_between(segments, clip.start, clip.end) if opt.captions else []
+        elif DEVANAGARI.search(clip.title + " ".join(w.text for w in words)):
+            style.font = "Noto Sans Devanagari ExtraBold"
+            style.uppercase = False
         ass = build_ass(words, clip.start, clip.end, out_w, out_h, style,
                         title=clip.title if opt.title else "", caption_y=caption_y)
         ass_file = work / "subs.ass"
         ass_file.write_text(ass, encoding="utf-8")
 
     fo = min(opt.fade_out, dur / 3)
-    fonts = Path(__file__).resolve().parents[2] / "fonts"
-    ass_f = f",ass={ass_file.name}" + (f":fontsdir='{fonts}'" if fonts.is_dir() else "") if ass_file else ""
+    ass_f = ""
+    if ass_file:
+        ass_f = f",ass={ass_file.name}"
+        if FONTS.is_dir():
+            shutil.copytree(FONTS, work / "fonts", dirs_exist_ok=True)  # relative path: no escaping issues on Windows
+            ass_f += ":fontsdir=fonts"
     finish = (f"fade=t=in:d={opt.fade_in},fade=t=out:st={dur - fo:.3f}:d={fo:.3f}"
               + ass_f + ",format=yuv420p")
 
@@ -110,7 +122,7 @@ def render_clip(src: Path, clip: Clip, segments: list[Segment], out_path: Path,
     if layout == "track":
         cam = rf.camera_path(centres, n_frames, crop_frac=(info.height * target_aspect) / info.width)
         v_graph = f"[0:v]{finish}[vout]"
-        cmd = (["ffmpeg", "-y", "-v", "error",
+        cmd = ([ffmpeg(), "-y", "-v", "error",
                 "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{out_w}x{out_h}", "-r", str(fps), "-i", "-"]
                + audio_in + music_in
                + ["-filter_complex", v_graph + ";" + a_graph] + common_out)
@@ -130,7 +142,7 @@ def render_clip(src: Path, clip: Clip, segments: list[Segment], out_path: Path,
         else:  # center crop
             v_graph = (f"[0:v]fps={fps},scale={out_w}:{out_h}:force_original_aspect_ratio=increase,"
                        f"crop={out_w}:{out_h},{finish}[vout]")
-        cmd = (["ffmpeg", "-y", "-v", "error", "-ss", f"{clip.start:.3f}", "-t", f"{dur:.3f}", "-i", str(src)]
+        cmd = ([ffmpeg(), "-y", "-v", "error", "-ss", f"{clip.start:.3f}", "-t", f"{dur:.3f}", "-i", str(src)]
                + audio_in + music_in
                + ["-filter_complex", v_graph + ";" + a_graph] + common_out)
         subprocess.run(cmd, check=True, cwd=work)

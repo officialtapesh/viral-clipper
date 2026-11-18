@@ -1,10 +1,14 @@
-"""Fetch a source video from a URL (YouTube, etc.) or accept a local path."""
+"""Fetch a source video from a URL (YouTube, Instagram, X, etc.) or accept a local path."""
 
 from __future__ import annotations
 
 import os
 import subprocess
 from pathlib import Path
+
+from .tools import ytdlp_cmd
+
+VIDEO_EXT = {".mp4", ".mkv", ".webm", ".mov", ".m4v"}
 
 
 def get_source(src: str, workdir: Path) -> Path:
@@ -16,16 +20,23 @@ def get_source(src: str, workdir: Path) -> Path:
         raise FileNotFoundError(f"Not a file or URL: {src}")
 
     workdir.mkdir(parents=True, exist_ok=True)
-    out_tmpl = str(workdir / "source.%(ext)s")
-    cmd = [
-        "yt-dlp",
-        "-f", "bv*[height<=1080]+ba/b[height<=1080]/b",
+    for p in workdir.glob("source.*"):  # already downloaded
+        if p.suffix in VIDEO_EXT:
+            return p.resolve()
+
+    cmd = ytdlp_cmd() + [
+        "-f", "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/bv*[height<=1080]+ba/b[height<=1080]/b",
         "--merge-output-format", "mp4",
-        "-o", out_tmpl,
+        "--no-playlist",
+        "-o", str(workdir / "source.%(ext)s"),
         src,
     ]
-    subprocess.run(cmd, check=True)
+    r = subprocess.run(cmd)
+    if r.returncode != 0:
+        raise RuntimeError(
+            "Download failed. If you're inside a sandbox without internet access to the site, "
+            "download the video yourself and pass the file path instead of the URL.")
     for p in workdir.glob("source.*"):
-        if p.suffix in {".mp4", ".mkv", ".webm", ".mov"}:
+        if p.suffix in VIDEO_EXT:
             return p.resolve()
-    raise RuntimeError("yt-dlp finished but no video file was found")
+    raise RuntimeError("Download finished but no video file was found")

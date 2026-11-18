@@ -9,12 +9,14 @@ layout: the full frame centred over a blurred, zoomed copy of itself.
 
 from __future__ import annotations
 
-import json
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+
+from .tools import ffmpeg
 
 ANALYSIS_FPS = 5
 ANALYSIS_WIDTH = 640
@@ -29,18 +31,27 @@ class VideoInfo:
 
 
 def probe(path: Path) -> VideoInfo:
-    out = subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", "v:0",
-         "-show_entries", "stream=width,height,r_frame_rate:format=duration",
-         "-of", "json", str(path)],
-        capture_output=True, text=True, check=True,
-    ).stdout
-    d = json.loads(out)
-    st = d["streams"][0]
-    num, den = st["r_frame_rate"].split("/")
-    fps = float(num) / float(den or 1)
-    return VideoInfo(int(st["width"]), int(st["height"]), fps if fps > 0 else 30.0,
-                     float(d["format"].get("duration", 0)))
+    """Read size/fps/duration with OpenCV (no ffprobe needed), ffmpeg as fallback."""
+    import cv2
+
+    cap = cv2.VideoCapture(str(path))
+    w, h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = cap.get(cv2.CAP_PROP_FPS) or 0
+    frames = cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0
+    cap.release()
+    if w and h:
+        fps = fps if 1 < fps < 241 else 30.0
+        return VideoInfo(w, h, fps, frames / fps if frames > 0 else 0.0)
+
+    # fallback: parse `ffmpeg -i` banner
+    err = subprocess.run([ffmpeg(), "-hide_banner", "-i", str(path)], capture_output=True, text=True).stderr
+    m = re.search(r"Video:.*?(\d{2,5})x(\d{2,5})", err)
+    f = re.search(r"([\d.]+) fps", err)
+    d = re.search(r"Duration: (\d+):(\d+):([\d.]+)", err)
+    if not m:
+        raise RuntimeError(f"Could not read video: {path}")
+    dur = int(d[1]) * 3600 + int(d[2]) * 60 + float(d[3]) if d else 0.0
+    return VideoInfo(int(m[1]), int(m[2]), float(f[1]) if f else 30.0, dur)
 
 
 def parse_aspect(aspect: str) -> float:
@@ -73,7 +84,7 @@ def analyze_faces(src: Path, start: float, dur: float, info: VideoInfo) -> list[
     import cv2
 
     h = int(round(info.height * ANALYSIS_WIDTH / info.width / 2) * 2)
-    cmd = ["ffmpeg", "-v", "error", "-ss", f"{start:.3f}", "-i", str(src), "-t", f"{dur:.3f}",
+    cmd = [ffmpeg(), "-v", "error", "-ss", f"{start:.3f}", "-i", str(src), "-t", f"{dur:.3f}",
            "-vf", f"fps={ANALYSIS_FPS},scale={ANALYSIS_WIDTH}:{h}",
            "-f", "rawvideo", "-pix_fmt", "gray", "-"]
     raw = subprocess.run(cmd, capture_output=True, check=True).stdout
@@ -161,7 +172,7 @@ def tracked_frames(src: Path, start: float, dur: float, info: VideoInfo,
 
     crop_w = int(round(info.height * out_w / out_h / 2) * 2)
     crop_w = min(crop_w, info.width)
-    cmd = ["ffmpeg", "-v", "error", "-ss", f"{start:.3f}", "-i", str(src), "-t", f"{dur:.3f}",
+    cmd = [ffmpeg(), "-v", "error", "-ss", f"{start:.3f}", "-i", str(src), "-t", f"{dur:.3f}",
            "-vf", f"fps={fps}", "-f", "rawvideo", "-pix_fmt", "bgr24", "-"]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     fb = info.width * info.height * 3

@@ -74,7 +74,7 @@ def _group(words: list[Word], n: int, max_gap: float = 0.6) -> list[list[Word]]:
 def build_ass(words: list[Word], clip_start: float, clip_end: float, w: int, h: int,
               style: CaptionStyle, title: str = "", title_secs: float = 3.0,
               caption_y: float | None = None) -> str:
-    size = style.size or int(h * (0.052 if style.name in ("pop", "boxed") else 0.042))
+    size = style.size or int(h * (0.046 if style.name in ("pop", "boxed") else 0.040))
     y = caption_y if caption_y is not None else style.position
     margin_v = int(h * (1 - y)) - size // 2
     white, hi, kw = _ass_color(style.color), _ass_color(style.highlight), _ass_color(style.keyword)

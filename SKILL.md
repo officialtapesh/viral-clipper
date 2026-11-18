@@ -25,15 +25,21 @@ Pass the number as `-n`. For 20+ clips, use `--min 15 --max 60`, so a
 ## 1. Setup (once per machine)
 
 ```bash
-pip install -r requirements.txt     # faster-whisper, opencv<5, yt-dlp, numpy
-ffmpeg -version                     # must exist, built with libass
+python3 scripts/setup.py
 ```
-If ffmpeg is missing: `brew install ffmpeg` / `sudo apt install ffmpeg` / `winget install ffmpeg`.
+This creates `.venv`, installs everything (ffmpeg with caption support comes
+from pip, so no Homebrew or apt is needed) and runs `doctor`. It's safe to re-run.
+`scripts/clip.py` uses `.venv` automatically.
+
+If `doctor` says YouTube or Hugging Face is unreachable, you are in a
+sandbox with limited internet. Don't fight it. Either ask the user for the
+video file (and pass its path instead of the URL), or run the commands on the
+user's own computer, where the internet is open.
 
 ## 2. Prepare: download and transcribe
 
 ```bash
-python scripts/clip.py prepare "<youtube-url-or-file>" -w work -n 8 --min 20 --max 60
+python3 scripts/clip.py prepare "<youtube-url-or-file>" -w work -n 8 --min 20 --max 60
 ```
 - Add `--language hi` for Hindi or Hinglish (auto-detect works too).
 - Use `--whisper medium` or `large-v3` for better accuracy; `base` is faster.
@@ -54,14 +60,14 @@ Read `work/PICK_CLIPS.md` and `work/transcript.txt`, then write
 
 For long transcripts, read in chunks and keep a running shortlist.
 
-Without an agent, use `python scripts/clip.py find -w work --mode llm` (needs
+Without an agent, use `python3 scripts/clip.py find -w work --mode llm` (needs
 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or a local Ollama via `OPENAI_BASE_URL`)
 or `--mode heuristic`, which works fully offline.
 
 ## 4. Render
 
 ```bash
-python scripts/clip.py render -w work -o clips --style pop
+python3 scripts/clip.py render -w work -o clips --style pop
 ```
 Options:
 | flag | values |
@@ -125,5 +131,5 @@ Only post videos the user owns or has the rights to clip.
 
 ## One-shot (no agent)
 ```bash
-python scripts/clip.py run "<url-or-file>" -o clips
+python3 scripts/clip.py run "<url-or-file>" -o clips
 ```
