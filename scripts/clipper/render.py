@@ -73,16 +73,29 @@ def render_clip(src: Path, clip: Clip, segments: list[Segment], out_path: Path,
     target_aspect = out_w / out_h
     layout = opt.layout
     centres: list = []
-    if layout in ("auto", "track") and src_aspect > target_aspect + 0.01:
+    cam = None
+    wide = src_aspect > target_aspect + 0.01
+    if layout in ("auto", "stack") and wide and target_aspect < 1:
+        cam = rf.detect_facecam(src, clip.start, dur, info)   # streamer cam overlay?
+        if cam:
+            layout = "stack"
+        elif layout == "stack":
+            print("  no facecam found → tracking instead")
+            layout = "auto"
+    if layout in ("auto", "track") and wide:
         centres = rf.analyze_faces(src, clip.start, dur, info)
         cov = rf.face_coverage(centres)
         if layout == "auto":
-            layout = "track" if cov >= opt.min_face_coverage else "fit"
+            # no blurred backgrounds by default: zoom into the main shot
+            layout = "track" if cov >= opt.min_face_coverage else "center"
     elif layout == "auto":
         layout = "center"
 
     # 2. captions + title
     caption_y = None
+    top_h = out_w if layout == "stack" else 0      # square gameplay on top
+    if layout == "stack":
+        caption_y = top_h / out_h                    # captions ride the seam
     if layout == "fit":
         # video sits in the middle band; put captions just under it
         band = out_w / src_aspect / out_h
@@ -122,20 +135,27 @@ def render_clip(src: Path, clip: Clip, segments: list[Segment], out_path: Path,
     audio_in = ["-ss", f"{clip.start:.3f}", "-t", f"{dur:.3f}", "-i", str(src)]
 
     if layout == "track":
-        cam = rf.camera_path(centres, n_frames, crop_frac=(info.height * target_aspect) / info.width)
+        cam_path = rf.camera_path(centres, n_frames, crop_frac=(info.height * target_aspect) / info.width)
         v_graph = f"[0:v]{finish}[vout]"
         cmd = ([ffmpeg(), "-y", "-v", "error",
                 "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{out_w}x{out_h}", "-r", str(fps), "-i", "-"]
                + audio_in + music_in
                + ["-filter_complex", v_graph + ";" + a_graph] + common_out)
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, cwd=work)
-        for frame in rf.tracked_frames(src, clip.start, dur, info, cam, out_w, out_h, fps):
+        for frame in rf.tracked_frames(src, clip.start, dur, info, cam_path, out_w, out_h, fps):
             proc.stdin.write(frame)
         proc.stdin.close()
         if proc.wait() != 0:
             raise RuntimeError(f"ffmpeg failed rendering {out_path.name}")
     else:
-        if layout == "fit":
+        if layout == "stack":
+            (gw, gh, gx, gy), (cw, ch, cx, cy) = rf.stack_crops(info, cam, out_w, out_h, top_h)
+            v_graph = (f"[0:v]fps={fps},split=2[g][c];"
+                       f"[g]crop={gw}:{gh}:{gx}:{gy},scale={out_w}:{top_h}:flags=lanczos[top];"
+                       f"[c]crop={cw}:{ch}:{cx}:{cy},scale={out_w}:{out_h - top_h}:flags=lanczos,"
+                       f"unsharp=5:5:0.5[bot];"
+                       f"[top][bot]vstack=2,{finish}[vout]")
+        elif layout == "fit":
             v_graph = (f"[0:v]fps={fps},split=2[bg][fg];"
                        f"[bg]scale={out_w}:{out_h}:force_original_aspect_ratio=increase,"
                        f"crop={out_w}:{out_h},boxblur=28:2,eq=brightness=-0.12[bgb];"

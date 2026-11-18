@@ -128,8 +128,10 @@ def cmd_render(a) -> None:
     results = []
     for k, (i, c) in enumerate(clips, 1):
         name = f"{i:02d}_{c.score:02d}_{slugify(c.title or c.hook)}.mp4"
-        print(f"→ [{k}/{len(clips)}] {name}  ({c.end - c.start:.0f}s)")
-        if sections:
+        print(f"→ [{k}/{len(clips)}] {name}  ({c.duration:.0f}s{', %d parts' % len(c.parts) if c.parts else ''})")
+        if c.parts:
+            res = _render_parts(c, segs, out / name, opt, work, meta if sections else None, src)
+        elif sections:
             from .youtube import download_section
             print("  downloading just this section…")
             sec, off = download_section(meta["url"], c.start, c.end, work)
@@ -144,6 +146,37 @@ def cmd_render(a) -> None:
     (out / "clips.json").write_text(json.dumps(results, ensure_ascii=False, indent=2))
     _gallery(results, out)
     print(f"✓ {len(results)} clips in {out}/  (open {out/'index.html'} to preview)")
+
+
+def _render_parts(c, segs, out_path: Path, opt, work: Path, meta: dict | None, src: Path | None) -> dict:
+    """Non-linear edit: cut each part, join them, render the joined clip."""
+    from .assemble import assemble
+
+    getter = None
+    if meta:
+        from .youtube import download_section
+
+        # parts close together share one download
+        spans: list[list[float]] = []
+        for a_, b_ in sorted(c.parts):
+            if spans and a_ - spans[-1][1] < 45:
+                spans[-1][1] = max(spans[-1][1], b_)
+            else:
+                spans.append([a_, b_])
+
+        def getter(a_, b_):
+            span = next(sp for sp in spans if sp[0] <= a_ and b_ <= sp[1])
+            print(f"  downloading section {span[0]:.0f}-{span[1]:.0f}s…")
+            return download_section(meta["url"], span[0], span[1], work)
+    else:
+        getter = lambda a_, b_: (src, 0.0)
+
+    tmp = out_path.parent / f".{out_path.stem}"
+    joined, jsegs, total = assemble(c.parts, getter, segs, tmp)
+    local = dataclasses.replace(c, start=0.0, end=total, parts=[])
+    res = render_clip(joined, local, jsegs, out_path, opt)
+    res.update(start=round(c.start, 2), end=round(c.end, 2), parts=c.parts, duration=round(total, 2))
+    return res
 
 
 def _shift(segs, off: float, lo: float, hi: float):
@@ -203,7 +236,7 @@ def main(argv=None) -> None:
         sp.add_argument("-o", "--out", default="clips")
         sp.add_argument("--aspect", default="9:16", help="9:16, 1:1, 4:5, 16:9")
         sp.add_argument("--height", type=int, default=1920)
-        sp.add_argument("--layout", choices=["auto", "track", "fit", "center"], default="auto")
+        sp.add_argument("--layout", choices=["auto", "stack", "track", "center", "fit"], default="auto")
         sp.add_argument("--style", choices=["pop", "karaoke", "boxed", "minimal"], default="pop")
         sp.add_argument("--font", default=None, help="caption font family")
         sp.add_argument("--no-captions", action="store_true")

@@ -191,3 +191,112 @@ def tracked_frames(src: Path, start: float, dur: float, info: VideoInfo,
     finally:
         proc.stdout.close()
         proc.wait()
+
+
+# --------------------------------------------------------------------------- #
+# Facecam detection (streamer overlay in a corner of gameplay / screen videos)
+# --------------------------------------------------------------------------- #
+
+@dataclass
+class Box:
+    x: int
+    y: int
+    w: int
+    h: int
+    face: tuple  # (cx, cy, size) of the face inside, source pixels
+
+
+def _sample_gray(src: Path, start: float, dur: float, info: VideoInfo, n: int = 14) -> list:
+    import cv2
+
+    frames = []
+    for t in np.linspace(start + 0.3, start + max(dur - 0.3, 0.4), n):
+        raw = subprocess.run([ffmpeg(), "-v", "error", "-ss", f"{t:.3f}", "-i", str(src), "-frames:v", "1",
+                              "-f", "rawvideo", "-pix_fmt", "gray", "-"], capture_output=True).stdout
+        if len(raw) >= info.width * info.height:
+            frames.append(np.frombuffer(raw[: info.width * info.height], np.uint8).reshape(info.height, info.width))
+    return frames
+
+
+def detect_facecam(src: Path, start: float, dur: float, info: VideoInfo) -> Box | None:
+    """Find a small, stationary face overlay (webcam box) and its rectangle.
+
+    1. Faces smaller than 22% of frame width that sit in the same spot in
+       at least 40% of sampled frames = the streamer's cam.
+    2. The cam's border is a long straight edge that stays put while the
+       gameplay moves, so it shows up in the *median* gradient image.
+    """
+    import cv2
+
+    frames = _sample_gray(src, start, dur, info)
+    if len(frames) < 4:
+        return None
+    W, H = info.width, info.height
+    casc, _ = _detectors()
+    hits = []
+    for g in frames:
+        fs = casc.detectMultiScale(cv2.equalizeHist(g), 1.1, 5, minSize=(max(32, H // 30),) * 2)
+        hits += [f for f in fs if f[2] < 0.22 * W]
+    if not hits:
+        return None
+    a = np.array(hits, dtype=float)
+    cx = (a[:, 0] + a[:, 2] / 2) / W
+    cy = (a[:, 1] + a[:, 3] / 2) / H
+    best = max((((abs(cx - cx[i]) < 0.04) & (abs(cy - cy[i]) < 0.06)) for i in range(len(a))), key=np.sum)
+    if best.sum() < 0.4 * len(frames):
+        return None
+    fx, fy, fw, fh = np.median(a[best], axis=0)
+    fcx, fcy = fx + fw / 2, fy + fh / 2
+    # a cam that sits near the centre is a talking-head video, not an overlay
+    if 0.3 * W < fcx < 0.7 * W and 0.3 * H < fcy < 0.7 * H:
+        return None
+
+    st = np.stack(frames).astype(np.float32)
+    gx = np.median(np.abs(np.stack([cv2.Sobel(f, cv2.CV_32F, 1, 0, ksize=3) for f in st])), axis=0)
+    gy = np.median(np.abs(np.stack([cv2.Sobel(f, cv2.CV_32F, 0, 1, ksize=3) for f in st])), axis=0)
+
+    def peak(profile, lo, hi, base):
+        lo, hi = int(max(lo, 0)), int(min(hi, len(profile)))
+        if hi - lo < 3:
+            return None
+        k = int(np.argmax(profile[lo:hi]))
+        return lo + k if profile[lo + k] > 6 * base else None
+
+    r0, r1 = int(max(fy - fh, 0)), int(min(fy + 2 * fh, H))
+    colp = gx[r0:r1].mean(0)
+    base = float(np.median(colp)) + 1e-3
+    left = peak(colp, fx - 4 * fw, fx - 0.4 * fw, base)
+    right = peak(colp, fx + 1.4 * fw, fx + 5 * fw, base)
+    x0 = left if left is not None else int(max(fx - 1.5 * fw, 0))
+    x1 = right if right is not None else (W if fcx > W / 2 else int(min(fx + 2.5 * fw, W)))
+    rowp = gy[:, x0:x1].mean(1)
+    base = float(np.median(rowp)) + 1e-3
+    top = peak(rowp, fy - 3 * fh, fy - 0.4 * fh, base)
+    bot = peak(rowp, fy + 1.4 * fh, fy + 4 * fh, base)
+    y0 = top if top is not None else (0 if fcy < H / 2 else int(max(fy - 1.2 * fh, 0)))
+    y1 = bot if bot is not None else (int(min(fy + 2.2 * fh, H)) if fcy < H / 2 else H)
+    if (x1 - x0) < fw * 1.2 or (y1 - y0) < fh * 1.2:
+        return None
+    return Box(int(x0), int(y0), int(x1 - x0), int(y1 - y0), (fcx, fcy, fw))
+
+
+def stack_crops(info: VideoInfo, cam: Box, out_w: int, out_h: int, top_h: int):
+    """Crop rectangles for: gameplay (top, avoiding the cam) and cam (bottom)."""
+    W, H = info.width, info.height
+    # gameplay: full height, aspect out_w:top_h, steer away from the cam overlay
+    gw = min(W, int(round(H * out_w / top_h / 2) * 2))
+    gx = (W - gw) // 2
+    if cam.x + cam.w / 2 > W / 2:          # cam on the right
+        gx = max(0, min(gx, cam.x - gw - 4))
+    else:                                   # cam on the left
+        gx = min(W - gw, max(gx, cam.x + cam.w + 4))
+    # cam: inset 4% to drop rounded borders, then largest rect of bottom aspect
+    ix, iy = cam.x + cam.w * 0.04, cam.y + cam.h * 0.04
+    iw, ih = cam.w * 0.92, cam.h * 0.92
+    aspect = out_w / (out_h - top_h)
+    cw, ch = (ih * aspect, ih) if iw / ih > aspect else (iw, iw / aspect)
+    fcx, fcy, _ = cam.face
+    cx = min(max(fcx - cw / 2, ix), ix + iw - cw)
+    cy = min(max(fcy - ch / 2, iy), iy + ih - ch)
+    ev = lambda v: int(v) // 2 * 2
+    return (ev(gw), H - H % 2, ev(gx), 0), (ev(cw), ev(ch), ev(cx), ev(cy))

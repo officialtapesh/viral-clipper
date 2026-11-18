@@ -65,7 +65,30 @@ Read `work/PICK_CLIPS.md` and `work/transcript.txt`, then write
 - **Title** is the on-screen hook: 7 words max, punchy, in the video's language.
 - Give each clip a post `caption` and 3-5 `hashtags`. No overlapping clips.
 
-For long transcripts, read in chunks and keep a running shortlist.
+For long transcripts, read in chunks and keep a running shortlist, or run
+`python3 scripts/clip.py find -w work --mode heuristic -n 15` first for a
+candidate list, then read those windows closely and decide yourself.
+
+### Editing rules (every video)
+
+1. **Hook first, always.** If the strongest line (the reveal, the shock,
+   the punchline) comes later in the moment, build a **cold open** with
+   `parts`: that line first (3-6s), then the story from its start.
+   Example: `"parts": [[37.4, 42.1], [9.9, 33.5], [42.1, 49.0]]`.
+2. **Show, don't just tell.** If the speaker refers to something that
+   happened on screen (a crash, a goal, a fail, a reveal), find that moment
+   in the transcript (the live reaction: "अबे", "oh no", "wait wait") and put
+   it in the clip, usually first, before the explanation.
+3. **Cut the filler.** Drop sentences that repeat or explain what was
+   already shown; use extra `parts` to jump over them.
+4. **End on a payoff or a cliffhanger** ("the reason I'll tell you…",
+   the twist, the result). Never mid-thought. Endings fade out smoothly.
+5. **Layout is automatic, never blurred backgrounds:**
+   - streamer face cam in a corner → `stack`: gameplay square on top,
+     face cam below, captions on the seam
+   - talking head / podcast → `track`: the crop follows the speaker's face
+   - no faces → `center`: zoom into the main shot
+6. Keep each clip 25-60s; aim for ~35-50s.
 
 Without an agent, use `python3 scripts/clip.py find -w work --mode llm` (needs
 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or a local Ollama via `OPENAI_BASE_URL`)
@@ -80,7 +103,7 @@ Options:
 | flag | values |
 |---|---|
 | `--aspect` | `9:16` (default), `1:1`, `4:5`, `16:9` |
-| `--layout` | `auto` (track faces, else blurred-fit), `track`, `fit`, `center` |
+| `--layout` | `auto` (face cam → `stack`, speaker → `track`, else `center`), `stack`, `track`, `center`, `fit` (blurred bg, only if asked) |
 | `--style` | `pop` (Opus-style), `karaoke`, `boxed` (Hormozi), `minimal` |
 | `--font` | any installed font, or drop `.ttf` files in `fonts/` |
 | `--music file.mp3` | background music, auto-ducked under speech |

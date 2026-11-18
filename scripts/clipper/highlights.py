@@ -26,17 +26,29 @@ from .transcribe import Segment
 
 @dataclass
 class Clip:
-    start: float
-    end: float
+    start: float = 0.0
+    end: float = 0.0
     title: str = ""
     hook: str = ""
     score: int = 0
     reason: str = ""
     hashtags: list[str] = field(default_factory=list)
     caption: str = ""
+    # Optional non-linear edit: [[start, end], ...] played in this order.
+    # Use it for cold opens (punchline first, then the story) or to show the
+    # action a speaker refers to (the crash, then the reaction).
+    parts: list = field(default_factory=list)
+
+    def __post_init__(self):
+        if self.parts:
+            self.parts = [[float(a), float(b)] for a, b in self.parts]
+            self.start = min(a for a, _ in self.parts)
+            self.end = max(b for _, b in self.parts)
 
     @property
     def duration(self) -> float:
+        if self.parts:
+            return sum(b - a for a, b in self.parts)
         return self.end - self.start
 
 
@@ -73,6 +85,13 @@ Choose up to {n} clips, each {min_len:.0f}-{max_len:.0f}s long.
 
 {VIRALITY_RUBRIC}
 
+Editing rules (apply to every clip):
+- Open on the strongest line. If the punchline/reveal comes later, make a
+  COLD OPEN with "parts": the reveal first (3-6s), then the story from its start.
+- If the speaker refers to something that happened on screen (a crash, a
+  goal, a fail), SHOW it: include that moment as a part before the reaction.
+- End on a payoff or a cliffhanger line, never mid-thought.
+
 Write `clips.json` in this folder: a JSON array sorted by score (highest first):
 
 ```json
@@ -83,6 +102,8 @@ Write `clips.json` in this folder: a JSON array sorted by score (highest first):
   "caption": "post caption, 1-2 lines",
   "hashtags": ["#tag1", "#tag2", "#tag3"]}}]
 ```
+Optional `"parts": [[37.4, 42.1], [9.9, 33.5]]` plays those ranges in that
+order (cold open, then story); start/end are then ignored.
 Use timestamps from the transcript; they will be snapped to sentence edges.
 """)
     return path
@@ -227,6 +248,15 @@ def snap(clips: list[Clip], segments: list[Segment], min_len: float, max_len: fl
     words = [w for s in segments for w in s.words]
     out: list[Clip] = []
     for c in sorted(clips, key=lambda c: -c.score):
+        if c.parts:  # hand-built edit: just snap each cut to the nearest word edge
+            if words:
+                starts = [w.start for w in words]
+                ends = [w.end for w in words]
+                c.parts = [[min(starts, key=lambda x: abs(x - a)), min(ends, key=lambda x: abs(x - b))]
+                           for a, b in c.parts]
+                c.__post_init__()
+            out.append(c)
+            continue
         if words:
             starts = [w.start for w in words]
             ends = [w.end for w in words]

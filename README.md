@@ -13,8 +13,10 @@ python3 scripts/clip.py run "https://youtube.com/watch?v=..." -o clips
 | **No full video download** | ✅ | reads YouTube captions, then downloads only the clip sections |
 | Find viral moments | ✅ | AI or offline heuristic, scored 0-100 |
 | Virality score + reason | ✅ | hook / standalone / payoff / emotion / pace rubric |
+| Gaming / streamer layout | ✅ | auto-detects the face cam → gameplay on top, streamer below |
 | Auto-reframe to 9:16 | ✅ | face tracking with a smooth "camera operator" (no jitter) |
-| No face? Smart fallback | ✅ | blurred-background fit layout |
+| Cold-open hooks | ✅ | multi-part edits: punchline first, then the story |
+| Shows the action | ✅ | pulls in the on-screen moment the speaker reacts to |
 | Animated captions | ✅ | 4 styles: `pop`, `karaoke`, `boxed`, `minimal` |
 | Keyword highlighting | ✅ | numbers and power words coloured |
 | Hook title overlay | ✅ | first 3 seconds |
