@@ -22,6 +22,13 @@ All commands run from this skill's folder. Scripts live in `scripts/`.
 Pass the number as `-n`. For 20+ clips, use `--min 15 --max 60`, so a
 1-hour video has enough room.
 
+## Which way to run
+
+- **Claude Code / a terminal with open internet** → run the commands below directly.
+- **Claude desktop or mobile app** (a sandbox that can't reach YouTube) → use
+  the **helper** on the user's computer: see "Running through the helper"
+  at the end. The user only gives you a link and a number of clips.
+
 ## 1. Setup (once per machine)
 
 ```bash
@@ -162,6 +169,39 @@ If a platform blocks automation or asks for a captcha, stop and hand that
 step to the user.
 
 Only post videos the user owns or has the rights to clip.
+
+## Running through the helper (Claude desktop / mobile app)
+
+The helper (`scripts/helper.py`) runs on the user's computer, starts at login,
+and executes clip jobs that you drop into `<repo>/jobs/`. It accepts only
+`prepare` and `render` with validated settings. Your own shell (device_bash or
+the sandbox) usually **cannot** reach YouTube, so never run prepare or
+render yourself; always go through the helper.
+
+1. **Find it.** In the connected folder, locate `viral-clipper/jobs/helper.json`.
+   It is alive if its `epoch` is within the last 60s. If it's missing or stale,
+   ask the user to double-click `Install Helper.command` (macOS) or
+   `Install Helper (Windows).bat` once, or to wake their computer.
+2. **Prepare.** Make a job folder `jobs/<yyyymmdd-hhmm-short-name>/` and write
+   `request.json`:
+   `{"action": "prepare", "url": "<link>", "n": <clips>, "min": 20, "max": 60}`
+   (optional `"language": "hi"`). Poll `status.json` every ~5-10s until
+   `state` is `done` (captions take seconds; audio + Whisper takes minutes).
+   On `failed`/`rejected`, read `log_tail` / `error` and fix or tell the user.
+3. **Pick.** Read `work/transcript.txt` and `work/PICK_CLIPS.md` and write
+   `work/clips.json` following the editing rules above (cold opens with
+   `parts`, show the action, payoff endings).
+4. **Render.** Write `request.json` again:
+   `{"action": "render", "min": 20, "max": 60}` (optional `layout`, `style`,
+   `facecam`, `split`, `only`, `aspect`). Poll until `done`; `status.json`
+   then lists the clips.
+5. **Check.** Look at `work/facecam_check.jpg` (if present) and a frame from
+   each clip (make a contact sheet with ffmpeg in your shell, stage it and
+   view it). Fix and re-render (`"only": "2"`) if anything is off.
+6. **Deliver.** Stage the MP4s from `jobs/<id>/clips/` and send them in the
+   chat, with title, score, why each works, caption and hashtags. Say
+   they're also saved on the computer in that folder.
+7. Then offer the approval and posting steps (sections 6-7).
 
 ## One-shot (no agent)
 ```bash

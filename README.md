@@ -38,6 +38,23 @@ python3 scripts/setup.py      # one command: installs everything, incl. ffmpeg +
 ```
 Only Python 3.9+ is needed ([python.org](https://www.python.org/downloads/)). The setup installs a private `.venv` with ffmpeg (captions included), the speech model loader and face tracking, then runs `python3 scripts/clip.py doctor` to confirm everything works. You don't need Homebrew, apt or any manual ffmpeg install.
 
+## Use it from the Claude app (desktop or phone)
+
+Claude's cloud sandbox can't reach YouTube, so a tiny **helper** runs the
+download and render jobs on your own computer:
+
+1. Double-click **`Install Helper.command`** (macOS) or **`Install Helper (Windows).bat`** once.
+   It sets everything up and starts the helper at every login.
+2. In the Claude app, connect this folder and add the skill.
+3. Ask: *"Make 10 shorts from https://youtube.com/watch?v=…"*. Claude picks the
+   moments, the helper renders them, and the clips come back in the chat.
+   This works from your phone too, as long as your computer is on and the
+   Claude desktop app is open.
+
+The helper only accepts two job types (`prepare`, `render`) with validated
+settings, so it never runs arbitrary commands. Remove it any time with
+`python3 scripts/install_helper.py --uninstall`.
+
 ## Three ways to pick moments
 
 1. **As a Claude skill (recommended, free).** Upload this folder as a skill, or use it in Claude Code. Claude reads the transcript and picks the clips like an editor would. No API key needed. See [`SKILL.md`](SKILL.md).
