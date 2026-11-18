@@ -162,10 +162,14 @@ HOOK_PATTERNS = [
     r"\b(secret|truth|mistake|never|nobody|everyone|stop|why|how|what if|the reason)\b",
     r"\b(crazy|insane|shocking|biggest|worst|best|only|actually|literally)\b",
     r"\b(i was wrong|here'?s the thing|let me tell you|the problem is|most people)\b",
-    # Hindi / Hinglish hooks
+    # Hindi / Hinglish hooks (romanised)
     r"\b(sach|galat|kabhi|koi nahi|sabse|asli|kyun|kaise|dekho|suno|yaar)\b",
+    # Hindi hooks (Devanagari) — \b doesn't work with Devanagari, so plain alternation
+    r"(सच|गलत|कभी नहीं|कोई नहीं|सबसे|असली|क्यों|कैसे|झटका|राज़|राज|सीक्रेट|पहली बार|यकीन|शॉक|हैरान)",
+    r"(सबसे बड़ा|सबसे महंगा|सबसे खतरनाक|पागल|खतरनाक|गज़ब|गजब|कमाल|बवाल|धमाका|अचानक|लेकिन|पर असली)",
 ]
-EMOTION = r"\b(love|hate|fear|angry|afraid|cried|laugh|funny|shame|proud|war|death|money|power|god)\b"
+EMOTION = (r"\b(love|hate|fear|angry|afraid|cried|laugh|funny|shame|proud|war|death|money|power|god)\b"
+           r"|(प्यार|नफरत|डर|गुस्सा|रो|हंस|मज़ा|मजा|मौत|मार|पैसा|पैसे|करोड़|लाख|मिलियन|बिलियन|धोखा|लड़ाई|पुलिस|भाग)")
 FILLER = r"^(so|and|but|um|uh|like|okay|yeah|you know|right)\b[ ,]*"
 
 

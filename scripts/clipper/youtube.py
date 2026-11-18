@@ -144,7 +144,7 @@ def download_section(url: str, start: float, end: float, work: Path, pad: float 
     a = max(0.0, start - pad)
     b = end + pad
     tag = hashlib.md5(f"{url}|{a:.2f}|{b:.2f}".encode()).hexdigest()[:10]
-    dest = work / "sections" / f"sec_{int(a)}_{tag}.mp4"
+    dest = (work / "sections" / f"sec_{int(a)}_{tag}.mp4").resolve()
     if dest.exists() and dest.stat().st_size > 10_000:
         return dest, a
     dest.parent.mkdir(parents=True, exist_ok=True)

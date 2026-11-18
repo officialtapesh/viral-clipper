@@ -35,7 +35,7 @@ def _is_url(s: str) -> bool:
 
 
 def cmd_prepare(a) -> None:
-    work = Path(a.work)
+    work = Path(a.work).resolve()
     work.mkdir(parents=True, exist_ok=True)
     if _is_url(a.source) and not a.full_download:
         return _prepare_url(a, work)
@@ -110,7 +110,7 @@ def cmd_find(a) -> None:
 
 
 def cmd_render(a) -> None:
-    work, out = Path(a.work), Path(a.out)
+    work, out = Path(a.work).resolve(), Path(a.out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     meta = json.loads((work / "source.json").read_text()) if (work / "source.json").exists() else {}
     sections = meta.get("mode") == "sections"

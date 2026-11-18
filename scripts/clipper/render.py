@@ -58,6 +58,8 @@ def _audio_filter(dur: float, opt: RenderOptions, has_music: bool) -> tuple[str,
 
 def render_clip(src: Path, clip: Clip, segments: list[Segment], out_path: Path,
                 opt: RenderOptions, info: rf.VideoInfo | None = None) -> dict:
+    src = Path(src).resolve()          # ffmpeg runs in a temp dir: never pass relative paths
+    out_path = Path(out_path).resolve()
     info = info or rf.probe(src)
     out_w, out_h = rf.output_size(opt.aspect, opt.height)
     dur = clip.end - clip.start
