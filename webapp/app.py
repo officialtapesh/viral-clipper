@@ -102,8 +102,9 @@ def make_shorts(video, url, n, min_len, max_len, language, layout, style, accura
         hint = ""
         joined = "\n".join(log_lines)
         if "Sign in to confirm" in joined or "403" in joined or "Couldn't read video info" in joined:
-            hint = ("\n\n⚠️ YouTube blocked this server. Download the video and **upload the file** "
-                    "instead; that always works.")
+            site = "YouTube" if ("youtube" in source or "youtu.be" in source) else "That website"
+            hint = (f"\n\n⚠️ {site} blocked this server from downloading. Download the video and "
+                    "**upload the file** instead; that always works.")
         yield "\n".join(log_lines[-60:]) + hint, None, None, "❌ Something went wrong. See the log above."
         return
 
