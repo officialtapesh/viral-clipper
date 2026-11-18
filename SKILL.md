@@ -1,6 +1,6 @@
 ---
 name: viral-clipper
-description: Turn a long-form video (podcast, interview, talk, YouTube URL or local file) into short vertical viral clips with virality scores, face-tracked 9:16 reframing, animated word-by-word captions and hook titles. Use when asked to make reels, shorts, TikToks or highlight clips from a long video.
+description: Turn a long-form video (YouTube URL or local file) into any number of short vertical viral clips with virality scores, face-tracked 9:16 reframing, animated captions and hook titles, then after approval post them to YouTube Shorts, Instagram, Facebook, TikTok via the browser. Use when asked to make reels, shorts or highlight clips from a long video, or to post them.
 ---
 
 # Viral Clipper
@@ -9,6 +9,18 @@ A free, open-source Opus Clip / Klap / Vizard alternative. You (Claude) act as
 the editor who picks moments; the scripts do transcription and rendering.
 
 All commands run from this skill's folder. Scripts live in `scripts/`.
+
+## The flow
+
+1. User gives a YouTube link and how many clips (e.g. 20 or 30). If no
+   number is given, ask for one; the default is 10.
+2. Transcribe, then pick the viral moments.
+3. Render vertical reels with captions.
+4. User approves.
+5. Post to the platforms the user chose via the browser.
+
+Pass the number as `-n`. For 20+ clips, use `--min 15 --max 60`, so a
+1-hour video has enough room.
 
 ## 1. Setup (once per machine)
 
@@ -74,6 +86,42 @@ Grab a frame from each clip
 in frame, are the captions readable and not covering the face? If the
 reframe is wrong, re-render that clip with `--layout fit` or `center`.
 Tell the user the top clips with their score and why each will work.
+
+## 6. Approval
+
+Never post anything without the user's approval. Send the clips (or
+`clips/index.html`) with a short table: number, score, title, length.
+Ask which ones to post and which to drop or redo (e.g. "re-render 4 with
+boxed captions"). Apply the edits, then ask again. Only approved clips
+move on to posting.
+
+## 7. Post to social media
+
+Ask which platforms to post to (YouTube Shorts, Instagram Reels, Facebook
+Reels, TikTok, LinkedIn, X) and whether to post now or space the clips
+out (recommended: 1-3 per platform per day; bulk uploads get throttled).
+
+Use a browser: the built-in browser or Claude in Chrome, whichever the
+user prefers. Load that browser's skill first. For each platform:
+
+1. Open the platform's upload page in a new tab
+   (studio.youtube.com, instagram.com, business.facebook.com,
+   tiktok.com/upload). If it isn't logged in, ask the user to log in
+   there themselves and say "done". Never type passwords or OTPs.
+2. Upload the MP4, paste the caption and hashtags from
+   `clips/clips.json`, and set the title (YouTube: title max 100 chars,
+   add `#Shorts`).
+3. Use the platform's own scheduler if the user wants the posts spaced out.
+4. Before clicking the final Post/Publish button, show the user what's
+   filled in and confirm. Once they say "post all", you can go
+   ahead for the rest of that batch.
+5. Copy the live post URL into `clips/posted.json`
+   (`{"clip": 1, "platform": "youtube", "url": "...", "at": "..."}`).
+
+If a platform blocks automation or asks for a captcha, stop and hand that
+step to the user.
+
+Only post videos the user owns or has the rights to clip.
 
 ## One-shot (no agent)
 ```bash

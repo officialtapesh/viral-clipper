@@ -23,6 +23,7 @@ python scripts/clip.py run "https://youtube.com/watch?v=..." -o clips
 | Aspect ratios | ✅ | 9:16, 1:1, 4:5, 16:9 |
 | Post captions + hashtags | ✅ | in `clips.json` |
 | Preview gallery | ✅ | `clips/index.html` |
+| Approve, then auto-post | ✅ | YouTube, Instagram, Facebook, TikTok via Claude's browser (as a skill) |
 | Cost | **₹0** | everything local; AI picking is optional |
 
 ## Install
