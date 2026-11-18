@@ -37,7 +37,7 @@ class RenderOptions:
 
 
 def slugify(text: str, n: int = 40) -> str:
-    s = re.sub(r"[^\w\s-]", "", text, flags=re.U).strip().lower()
+    s = re.sub(r"[^\w\s\u0900-\u097F-]", "", text, flags=re.U).strip().lower()
     return re.sub(r"[\s_-]+", "-", s)[:n].strip("-") or "clip"
 
 

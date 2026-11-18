@@ -10,6 +10,7 @@ python3 scripts/clip.py run "https://youtube.com/watch?v=..." -o clips
 
 | Feature | viral-clipper | How |
 |---|---|---|
+| **No full video download** | ✅ | reads YouTube captions, then downloads only the clip sections |
 | Find viral moments | ✅ | AI or offline heuristic, scored 0-100 |
 | Virality score + reason | ✅ | hook / standalone / payoff / emotion / pace rubric |
 | Auto-reframe to 9:16 | ✅ | face tracking with a smooth "camera operator" (no jitter) |
@@ -58,9 +59,9 @@ python3 scripts/clip.py render  -w work -o clips --style pop --music bgm.mp3
 ## How it works
 
 ```
-URL/file ─► yt-dlp ─► faster-whisper (word timestamps)
+URL ─► YouTube captions (few KB; else audio-only + Whisper)    file ─► faster-whisper
          ─► moment finder (Claude / LLM / heuristic) ─► snap to sentence edges
-         ─► face tracking (OpenCV) ─► dead-zone camera smoothing ─► crop
+         ─► download ONLY the chosen sections ─► face tracking (OpenCV) ─► dead-zone camera smoothing ─► crop
          ─► ASS animated captions + hook title ─► ffmpeg (fades, music ducking) ─► MP4
 ```
 

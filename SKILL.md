@@ -36,14 +36,21 @@ sandbox with limited internet. Don't fight it. Either ask the user for the
 video file (and pass its path instead of the URL), or run the commands on the
 user's own computer, where the internet is open.
 
-## 2. Prepare: download and transcribe
+## 2. Prepare: transcript only, no video download
 
 ```bash
 python3 scripts/clip.py prepare "<youtube-url-or-file>" -w work -n 8 --min 20 --max 60
 ```
-- Add `--language hi` for Hindi or Hinglish (auto-detect works too).
-- Use `--whisper medium` or `large-v3` for better accuracy; `base` is faster.
-- Writes `work/transcript.txt` (`[start-end] text`) and `work/PICK_CLIPS.md`.
+For a URL, the **whole video is never downloaded**:
+- It reads the video's own captions (human or auto, any language), which takes seconds and only a few KB.
+- If there are no captions, it downloads the **audio only** (about 10% of the size) and transcribes it with Whisper.
+- At render time, only the seconds each clip needs are downloaded.
+
+Options: `--language hi` picks the caption or transcription language.
+`--use-whisper` ignores captions and transcribes the audio, for tighter word timing.
+`--full-download` gets the whole video (rarely needed). For local files, Whisper
+runs on the file (`--whisper medium` or `large-v3` for accuracy).
+Writes `work/transcript.txt` (`[start-end] text`) and `work/PICK_CLIPS.md`.
 
 ## 3. Pick the clips yourself (agent mode, no API key)
 

@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import html
 import json
 import shutil
@@ -29,9 +30,15 @@ def _source_path(work: Path) -> Path:
     raise SystemExit(f"No prepared source in {work}. Run `prepare` first.")
 
 
+def _is_url(s: str) -> bool:
+    return s.startswith(("http://", "https://"))
+
+
 def cmd_prepare(a) -> None:
     work = Path(a.work)
     work.mkdir(parents=True, exist_ok=True)
+    if _is_url(a.source) and not a.full_download:
+        return _prepare_url(a, work)
     print(f"→ Getting source: {a.source}")
     src = get_source(a.source, work)
     info = probe(src)
@@ -43,6 +50,44 @@ def cmd_prepare(a) -> None:
     segs = transcribe(src, work / "transcript.json", a.whisper, a.language)
     hl.export_for_agent(segs, work, a.n, a.min, a.max)
     print(f"✓ {len(segs)} segments → {work/'transcript.txt'}")
+
+
+def _prepare_url(a, work: Path) -> None:
+    """URL mode: never download the whole video. Captions (or audio only) now,
+    and just the chosen clip sections at render time."""
+    from .transcribe import save
+    from .youtube import fetch_captions, fetch_info
+
+    print(f"→ Reading video info: {a.source}")
+    info = fetch_info(a.source, work)
+    dur = info.get("duration") or 0
+    print(f"  \"{info.get('title')}\" · {dur/60:.1f} min · {info.get('width')}x{info.get('height')}")
+    segs = None
+    if not a.use_whisper:
+        print("→ Fetching captions (no video download)")
+        segs = fetch_captions(a.source, info, work, a.language)
+    if segs:
+        save(segs, work / "transcript.json")
+    else:
+        print("→ No usable captions → downloading AUDIO only (≈10% of video size) for Whisper")
+        audio = _download_audio(a.source, work)
+        segs = transcribe(audio, work / "transcript.json", a.whisper, a.language)
+    (work / "source.json").write_text(json.dumps({
+        "mode": "sections", "url": a.source, "title": info.get("title"), "duration": dur,
+        "width": info.get("width"), "height": info.get("height")}, ensure_ascii=False, indent=1))
+    hl.export_for_agent(segs, work, a.n, a.min, a.max)
+    print(f"✓ {len(segs)} segments → {work/'transcript.txt'}  (video not downloaded)")
+
+
+def _download_audio(url: str, work: Path) -> Path:
+    import subprocess
+    from .tools import ytdlp_cmd
+
+    for p in work.glob("audio.*"):
+        return p
+    subprocess.run(ytdlp_cmd() + ["--no-playlist", "-f", "ba[ext=m4a]/ba", "-o", str(work / "audio.%(ext)s"), url],
+                   check=True)
+    return next(work.glob("audio.*"))
 
 
 def cmd_find(a) -> None:
@@ -67,7 +112,9 @@ def cmd_find(a) -> None:
 def cmd_render(a) -> None:
     work, out = Path(a.work), Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
-    src = _source_path(work)
+    meta = json.loads((work / "source.json").read_text()) if (work / "source.json").exists() else {}
+    sections = meta.get("mode") == "sections"
+    src = None if sections else _source_path(work)
     segs = load(work / "transcript.json")
     clips = list(enumerate(hl.snap(hl.load_clips(work / "clips.json"), segs, a.min, a.max), 1))
     if a.only:
@@ -77,18 +124,34 @@ def cmd_render(a) -> None:
                         caption_style=a.style, font=a.font, captions=not a.no_captions,
                         title=not a.no_title, fade_out=a.fade_out,
                         music=Path(a.music) if a.music else None, music_volume=a.music_volume)
-    info = probe(src)
+    info = None if sections else probe(src)
     results = []
     for k, (i, c) in enumerate(clips, 1):
         name = f"{i:02d}_{c.score:02d}_{slugify(c.title or c.hook)}.mp4"
         print(f"→ [{k}/{len(clips)}] {name}  ({c.end - c.start:.0f}s)")
-        res = render_clip(src, c, segs, out / name, opt, info)
+        if sections:
+            from .youtube import download_section
+            print("  downloading just this section…")
+            sec, off = download_section(meta["url"], c.start, c.end, work)
+            local = dataclasses.replace(c, start=c.start - off, end=c.end - off)
+            res = render_clip(sec, local, _shift(segs, off, c.start - 5, c.end + 5), out / name, opt)
+            res.update(start=round(c.start, 2), end=round(c.end, 2))
+        else:
+            res = render_clip(src, c, segs, out / name, opt, info)
         print(f"  layout={res['layout']}")
         results.append(res)
         shutil.rmtree(out / f".{Path(name).stem}", ignore_errors=True)
     (out / "clips.json").write_text(json.dumps(results, ensure_ascii=False, indent=2))
     _gallery(results, out)
     print(f"✓ {len(results)} clips in {out}/  (open {out/'index.html'} to preview)")
+
+
+def _shift(segs, off: float, lo: float, hi: float):
+    from .transcribe import Segment, Word
+
+    return [Segment(s.start - off, s.end - off, s.text,
+                    [Word(w.start - off, w.end - off, w.text) for w in s.words])
+            for s in segs if s.end >= lo and s.start <= hi]
 
 
 def cmd_run(a) -> None:
@@ -153,6 +216,10 @@ def main(argv=None) -> None:
     def prep_opts(sp):
         sp.add_argument("--whisper", default="small", help="tiny/base/small/medium/large-v3")
         sp.add_argument("--language", default=None, help="force language, e.g. hi, en")
+        sp.add_argument("--use-whisper", action="store_true",
+                        help="URL: ignore YouTube captions, transcribe audio with Whisper (more accurate timing)")
+        sp.add_argument("--full-download", action="store_true",
+                        help="URL: download the whole video instead of only the clip sections")
 
     sp = sub.add_parser("doctor", help="check this machine is ready")
     sp.set_defaults(fn=lambda a: sys.exit(__import__("clipper.doctor", fromlist=["run"]).run()))
