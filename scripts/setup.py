@@ -9,6 +9,7 @@ an ffmpeg build with caption support, so no Homebrew/apt needed), then runs
 """
 
 import os
+import shutil
 import subprocess
 import sys
 import venv
@@ -58,13 +59,48 @@ def fetch_ytdlp() -> None:
         print(f"  ⚠️  couldn't download standalone yt-dlp ({e}); falling back to the pip version")
 
 
-def main() -> None:
-    if sys.version_info < (3, 9):
-        sys.exit(f"Python 3.9+ needed (you have {sys.version.split()[0]}). Get it from python.org.")
+MIN_PY = (3, 10)
 
-    if not venv_python().exists():
+
+def _py_version(py: Path) -> tuple:
+    try:
+        out = subprocess.run([str(py), "-c", "import sys;print(sys.version_info[0], sys.version_info[1])"],
+                             capture_output=True, text=True, timeout=30).stdout.split()
+        return tuple(int(x) for x in out)
+    except Exception:
+        return (0, 0)
+
+
+def ensure_modern_venv() -> None:
+    """Make .venv on Python 3.10+. If the system Python is older (e.g. macOS's
+    built-in 3.9), fetch `uv` and let it provide a private Python 3.12, with no
+    Homebrew and no installer for the user to run."""
+    if venv_python().exists():
+        if _py_version(venv_python()) >= MIN_PY:
+            return
+        print("→ Existing .venv uses an old Python; rebuilding it")
+        shutil.rmtree(VENV)
+
+    if sys.version_info >= MIN_PY:
         print("→ Creating virtual environment (.venv)")
         venv.EnvBuilder(with_pip=True).create(VENV)
+        return
+
+    print(f"→ Your Python is {sys.version.split()[0]}; getting a private Python 3.12 via uv")
+    boot = REPO / ".uv-bootstrap"
+    boot_py = boot / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    if not boot_py.exists():
+        venv.EnvBuilder(with_pip=True).create(boot)
+    subprocess.check_call([str(boot_py), "-m", "pip", "install", "-q", "--upgrade", "uv"])
+    uv = boot / ("Scripts/uv.exe" if os.name == "nt" else "bin/uv")
+    subprocess.check_call([str(uv), "venv", str(VENV), "--python", "3.12", "--seed", "-q"])
+
+
+def main() -> None:
+    if sys.version_info < (3, 8):
+        sys.exit(f"Python 3.8+ needed to start setup (you have {sys.version.split()[0]}). Get it from python.org.")
+
+    ensure_modern_venv()
 
     py = str(venv_python())
     print("→ Installing dependencies (first run takes a few minutes)")
