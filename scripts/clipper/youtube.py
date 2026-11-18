@@ -34,6 +34,10 @@ def fetch_info(url: str, work: Path) -> dict:
     info = json.loads(r.stdout)
     keep = {k: info.get(k) for k in ("id", "title", "duration", "width", "height", "fps", "language",
                                       "uploader", "webpage_url", "is_live", "live_status")}
+    if keep.get("is_live") or keep.get("live_status") == "is_live":
+        keep["formats"] = [{k: f.get(k) for k in ("format_id", "protocol", "url", "height", "vcodec",
+                                                   "acodec", "tbr", "ext")}
+                           for f in info.get("formats") or [] if f.get("url")]
     keep["subtitles"] = sorted((info.get("subtitles") or {}).keys())
     keep["automatic_captions"] = sorted((info.get("automatic_captions") or {}).keys())
     work.mkdir(parents=True, exist_ok=True)
@@ -143,7 +147,24 @@ def is_live(info: dict) -> bool:
     return bool(info.get("is_live")) or info.get("live_status") == "is_live"
 
 
-def record_live(url: str, work: Path, minutes: float = 15) -> Path:
+def _live_inputs(info: dict) -> list[str]:
+    """Pick stream URL(s) from the formats yt-dlp already listed: a combined HLS
+    stream if there is one (<=1080p), otherwise best video + best audio."""
+    fs = [f for f in info.get("formats") or [] if "m3u8" in str(f.get("protocol"))] or info.get("formats") or []
+    has_v = lambda f: f.get("vcodec") not in (None, "none")
+    has_a = lambda f: f.get("acodec") not in (None, "none")
+    h = lambda f: f.get("height") or 0
+    both = [f for f in fs if has_v(f) and has_a(f) and h(f) <= 1080]
+    if both:
+        return [max(both, key=h)["url"]]
+    vids = [f for f in fs if has_v(f) and h(f) <= 1080]
+    auds = [f for f in fs if has_a(f) and not has_v(f)]
+    if vids and auds:
+        return [max(vids, key=h)["url"], max(auds, key=lambda f: f.get("tbr") or 0)["url"]]
+    return []
+
+
+def record_live(url: str, work: Path, minutes: float = 15, info: dict | None = None) -> Path:
     """Grab the most recent `minutes` of a live stream (YouTube keeps a DVR
     window), or record forward if the stream has no DVR. Returns the file."""
     import math
@@ -153,10 +174,14 @@ def record_live(url: str, work: Path, minutes: float = 15) -> Path:
 
     dest = (work / "live.mp4").resolve()
     work.mkdir(parents=True, exist_ok=True)
-    r = _run(["-g", "--no-playlist", "-f", "b[height<=1080][protocol*=m3u8]/b[height<=1080]/b", url])
-    if r.returncode != 0 or not r.stdout.strip():
-        raise RuntimeError(f"Couldn't get the live stream:\n{r.stderr[-1500:]}")
-    m3u8 = r.stdout.strip().splitlines()[0]
+    inputs = _live_inputs(info or {})
+    if not inputs:
+        r = _run(["-g", "--no-playlist", url])   # let yt-dlp choose
+        inputs = [l for l in r.stdout.strip().splitlines() if l.startswith("http")][:2]
+    if not inputs:
+        f = _run(["-F", "--no-playlist", url])
+        raise RuntimeError(f"Couldn't get the live stream. Formats:\n{f.stdout[-2500:]}\n{f.stderr[-800:]}")
+    m3u8 = inputs[0]
     secs = int(minutes * 60)
     seg = 5.0
     try:  # segment length → how many segments back to start
@@ -172,9 +197,13 @@ def record_live(url: str, work: Path, minutes: float = 15) -> Path:
         pass
     back = math.ceil(secs / max(seg, 1)) + 2
     print(f"  live: grabbing the last {minutes:g} min (segments of {seg:g}s)")
-    proc = subprocess.run([ffmpeg(), "-y", "-v", "error", "-live_start_index", str(-back), "-i", m3u8,
-                           "-t", str(secs), "-c", "copy", "-movflags", "+faststart", str(dest)],
-                          timeout=secs * 3 + 120)
+    cmd = [ffmpeg(), "-y", "-v", "error"]
+    for u in inputs:
+        cmd += ["-live_start_index", str(-back), "-i", u]
+    if len(inputs) == 2:
+        cmd += ["-map", "0:v:0", "-map", "1:a:0"]
+    cmd += ["-t", str(secs), "-c", "copy", "-movflags", "+faststart", str(dest)]
+    proc = subprocess.run(cmd, timeout=secs * 3 + 120)
     if proc.returncode != 0 or not dest.exists() or dest.stat().st_size < 100_000:
         raise RuntimeError("Recording the live stream failed")
     return dest

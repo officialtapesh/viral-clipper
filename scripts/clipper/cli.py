@@ -66,7 +66,7 @@ def _prepare_url(a, work: Path) -> None:
     if is_live(info):
         # Live stream: no captions yet and no end, so record the recent window locally
         print(f"→ LIVE stream: recording the last {a.live_minutes:g} minutes")
-        src = record_live(a.source, work, a.live_minutes)
+        src = record_live(a.source, work, a.live_minutes, info)
         segs = transcribe(src, work / "transcript.json", a.whisper, a.language)
         (work / "source.json").write_text(json.dumps({
             "mode": "file", "path": str(src), "url": a.source, "title": info.get("title"), "live": True},
