@@ -34,7 +34,11 @@ def transcribe(
 
     from faster_whisper import WhisperModel  # imported lazily: heavy
 
-    model = WhisperModel(model_size, device="auto", compute_type="auto")
+    try:
+        model = WhisperModel(model_size, device="auto", compute_type="auto")
+    except Exception as e:  # GPU libs missing/mismatched → CPU is always safe
+        print(f"  (GPU not usable: {e}; using CPU)")
+        model = WhisperModel(model_size, device="cpu", compute_type="int8")
     seg_iter, info = model.transcribe(
         str(video),
         language=language,

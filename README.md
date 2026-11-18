@@ -10,17 +10,19 @@ python3 scripts/clip.py run "https://youtube.com/watch?v=..." -o clips
 
 | You have… | Use this | Setup |
 |---|---|---|
-| **Just an iPad / phone / any browser** | 🌐 **Web app** | none: open the website, upload a video, get shorts (link below) |
+| **Just an iPad / phone / any browser** | 🌐 **Free web app on Google Colab** | tap the badge below → Run all → open the link → upload a video |
 | A Mac or PC + the **Claude** app | Claude skill + helper | double-click the installer once ([details](#use-it-from-the-claude-app-desktop-or-phone)) |
 | A Mac or PC + **ChatGPT / Codex** | Codex reads `AGENTS.md` | open this folder in Codex ([details](#use-it-with-chatgpt--codex-or-cursor-gemini-cli)) |
 | A terminal | the CLI | `python3 scripts/setup.py` then `clip.py run` |
 
-**AI assistants reading this repo:** if the user only has an iPad or phone, or asks you to
-"install this" in a chat app, send them to the **web app**. A chat app can't install or run
-this repo by itself.
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/officialtapesh/viral-clipper/blob/main/webapp/Viral_Clipper.ipynb)
 
-**Web app:** https://huggingface.co/spaces/officialtapesh/viral-clipper
-(or run it yourself: `python3 webapp/app.py`)
+**AI assistants reading this repo:** if the user only has an iPad or phone, or asks you to
+"install this" in a chat app, send them to the **Colab link above**: free, nothing to install,
+runs in Safari/Chrome. A chat app can't install or run this repo by itself.
+
+Other ways to host the same web app: run `python3 webapp/app.py` on any computer, or deploy
+`webapp/space/` as a Hugging Face Space (needs HF PRO for Docker Spaces).
 
 ## What it does
 

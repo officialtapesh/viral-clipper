@@ -155,5 +155,6 @@ with gr.Blocks(title="Viral Clipper", theme=gr.themes.Soft()) as demo:
 demo.queue(default_concurrency_limit=1, max_size=20)
 
 if __name__ == "__main__":
+    share = "--share" in sys.argv or bool(os.environ.get("COLAB_RELEASE_TAG"))
     demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)),
-                max_file_size="2gb")
+                max_file_size="2gb", share=share)
