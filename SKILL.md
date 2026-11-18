@@ -84,8 +84,12 @@ candidate list, then read those windows closely and decide yourself.
 4. **End on a payoff or a cliffhanger** ("the reason I'll tell you…",
    the twist, the result). Never mid-thought. Endings fade out smoothly.
 5. **Layout is automatic, never blurred backgrounds:**
-   - streamer face cam in a corner → `stack`: gameplay square on top,
-     face cam below, captions on the seam
+   - streamer face cam in a corner → `stack`: two equal boxes, gameplay on
+     top, the creator's face below, captions in the centre. The cam is found
+     once per video and saved to `work/facecam.json`; **look at
+     `work/facecam_check.jpg`** (yellow box = detected cam) before trusting it.
+     If it's wrong, re-render with `--facecam x,y,w,h` (source pixels) or
+     `--facecam none`.
    - talking head / podcast → `track`: the crop follows the speaker's face
    - no faces → `center`: zoom into the main shot
 6. Keep each clip 25-60s; aim for ~35-50s.
