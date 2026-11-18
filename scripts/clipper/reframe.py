@@ -218,7 +218,7 @@ def _sample_gray(src: Path, start: float, dur: float, info: VideoInfo, n: int = 
     return frames
 
 
-def detect_facecam(src: Path, start: float, dur: float, info: VideoInfo) -> Box | None:
+def detect_facecam(src: Path, start: float, dur: float, info: VideoInfo, verbose: bool = False) -> Box | None:
     """Find a small, stationary face overlay (webcam box) and its rectangle.
 
     1. Faces smaller than 22% of frame width that sit in the same spot in
@@ -228,22 +228,26 @@ def detect_facecam(src: Path, start: float, dur: float, info: VideoInfo) -> Box 
     """
     import cv2
 
-    frames = _sample_gray(src, start, dur, info)
+    frames = _sample_gray(src, start, dur, info, n=20)
+    log = (lambda m: print(f"    facecam: {m}")) if verbose else (lambda m: None)
     if len(frames) < 4:
+        log(f"only {len(frames)} frames could be read")
         return None
     W, H = info.width, info.height
     casc, _ = _detectors()
     hits = []
     for g in frames:
-        fs = casc.detectMultiScale(cv2.equalizeHist(g), 1.1, 5, minSize=(max(32, H // 30),) * 2)
+        fs = casc.detectMultiScale(cv2.equalizeHist(g), 1.1, 4, minSize=(max(48, H // 18),) * 2)
         hits += [f for f in fs if f[2] < 0.22 * W]
     if not hits:
+        log("no faces found")
         return None
     a = np.array(hits, dtype=float)
     cx = (a[:, 0] + a[:, 2] / 2) / W
     cy = (a[:, 1] + a[:, 3] / 2) / H
     best = max((((abs(cx - cx[i]) < 0.04) & (abs(cy - cy[i]) < 0.06)) for i in range(len(a))), key=np.sum)
-    if best.sum() < 0.4 * len(frames):
+    if best.sum() < 0.35 * len(frames):
+        log(f"no stable face (best spot in {int(best.sum())}/{len(frames)} frames)")
         return None
     fx, fy, fw, fh = np.median(a[best], axis=0)
     fcx, fcy = fx + fw / 2, fy + fh / 2
@@ -276,8 +280,24 @@ def detect_facecam(src: Path, start: float, dur: float, info: VideoInfo) -> Box 
     y0 = top if top is not None else (0 if fcy < H / 2 else int(max(fy - 1.2 * fh, 0)))
     y1 = bot if bot is not None else (int(min(fy + 2.2 * fh, H)) if fcy < H / 2 else H)
     if (x1 - x0) < fw * 1.2 or (y1 - y0) < fh * 1.2:
+        log("face found but no cam border")
         return None
+    log(f"found at x={x0} y={y0} {x1 - x0}x{y1 - y0} (face in {int(best.sum())}/{len(frames)} frames)")
     return Box(int(x0), int(y0), int(x1 - x0), int(y1 - y0), (fcx, fcy, fw))
+
+
+def save_check_image(src: Path, t: float, cam: Box | None, out: Path) -> None:
+    """Frame with the detected cam box drawn, so a human or Claude can verify it."""
+    import cv2
+
+    raw = subprocess.run([ffmpeg(), "-v", "error", "-ss", f"{t:.3f}", "-i", str(src), "-frames:v", "1",
+                          "-f", "image2pipe", "-vcodec", "png", "-"], capture_output=True).stdout
+    img = cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        return
+    if cam:
+        cv2.rectangle(img, (cam.x, cam.y), (cam.x + cam.w, cam.y + cam.h), (0, 255, 255), 4)
+    cv2.imwrite(str(out), cv2.resize(img, (img.shape[1] // 2, img.shape[0] // 2)))
 
 
 def stack_crops(info: VideoInfo, cam: Box, out_w: int, out_h: int, top_h: int):

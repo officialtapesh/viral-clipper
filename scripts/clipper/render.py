@@ -34,6 +34,8 @@ class RenderOptions:
     crf: int = 20
     fps: float = 30.0
     min_face_coverage: float = 0.35
+    facecam: object = None        # rf.Box decided once per video (see cli._facecam_for_video)
+    stack_split: float = 0.5      # share of height for the gameplay panel (0.5 = two equal boxes)
 
 
 def slugify(text: str, n: int = 40) -> str:
@@ -76,7 +78,9 @@ def render_clip(src: Path, clip: Clip, segments: list[Segment], out_path: Path,
     cam = None
     wide = src_aspect > target_aspect + 0.01
     if layout in ("auto", "stack") and wide and target_aspect < 1:
-        cam = rf.detect_facecam(src, clip.start, dur, info)   # streamer cam overlay?
+        cam = opt.facecam if opt.facecam is not None else rf.detect_facecam(src, clip.start, dur, info)
+        if cam == "none":
+            cam = None
         if cam:
             layout = "stack"
         elif layout == "stack":
@@ -93,9 +97,9 @@ def render_clip(src: Path, clip: Clip, segments: list[Segment], out_path: Path,
 
     # 2. captions + title
     caption_y = None
-    top_h = out_w if layout == "stack" else 0      # square gameplay on top
+    top_h = int(round(out_h * opt.stack_split / 2) * 2) if layout == "stack" else 0
     if layout == "stack":
-        caption_y = top_h / out_h                    # captions ride the seam
+        caption_y = top_h / out_h                    # captions sit on the seam, centre of frame
     if layout == "fit":
         # video sits in the middle band; put captions just under it
         band = out_w / src_aspect / out_h

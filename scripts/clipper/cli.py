@@ -123,8 +123,11 @@ def cmd_render(a) -> None:
     opt = RenderOptions(aspect=a.aspect, height=a.height, layout=a.layout,
                         caption_style=a.style, font=a.font, captions=not a.no_captions,
                         title=not a.no_title, fade_out=a.fade_out,
-                        music=Path(a.music) if a.music else None, music_volume=a.music_volume)
+                        music=Path(a.music) if a.music else None, music_volume=a.music_volume,
+                        stack_split=a.split)
     info = None if sections else probe(src)
+    if a.layout in ("auto", "stack"):
+        opt.facecam = _facecam_for_video(a, work, clips, meta if sections else None, src)
     results = []
     for k, (i, c) in enumerate(clips, 1):
         name = f"{i:02d}_{c.score:02d}_{slugify(c.title or c.hook)}.mp4"
@@ -146,6 +149,51 @@ def cmd_render(a) -> None:
     (out / "clips.json").write_text(json.dumps(results, ensure_ascii=False, indent=2))
     _gallery(results, out)
     print(f"✓ {len(results)} clips in {out}/  (open {out/'index.html'} to preview)")
+
+
+def _facecam_for_video(a, work: Path, clips, meta, src):
+    """A video's face cam doesn't move, so find it once (on the clearest footage),
+    save it to work/facecam.json and reuse it for every clip."""
+    from . import reframe as rf
+
+    cache = work / "facecam.json"
+    if a.facecam and a.facecam != "auto":
+        if a.facecam == "none":
+            cache.write_text('{"none": true}')
+            return "none"
+        x, y, w, h = (int(v) for v in a.facecam.split(","))
+        box = rf.Box(x, y, w, h, (x + w / 2, y + h / 2, h / 2))
+        cache.write_text(json.dumps({"box": [x, y, w, h], "face": list(box.face)}))
+        return box
+    if cache.exists():
+        d = json.loads(cache.read_text())
+        if d.get("none"):
+            return "none"
+        return rf.Box(*d["box"], tuple(d["face"]))
+
+    print("→ Looking for a streamer face cam (once per video)…")
+    candidates = []  # (file, start, dur)
+    for _, c in clips:
+        for p_a, p_b in (c.parts or [[c.start, c.end]]):
+            if meta:
+                from .youtube import download_section
+                f, off = download_section(meta["url"], p_a, p_b, work)
+                candidates.append((f, p_a - off, p_b - p_a))
+            else:
+                candidates.append((src, p_a, p_b - p_a))
+    candidates.sort(key=lambda t: -t[2])      # longest footage first
+    for f, st, du in candidates[:6]:
+        info = rf.probe(f)
+        box = rf.detect_facecam(f, st, du, info, verbose=True)
+        if box:
+            cache.write_text(json.dumps({"box": [box.x, box.y, box.w, box.h],
+                                         "face": [float(v) for v in box.face]}))
+            rf.save_check_image(f, st + du / 2, box, work / "facecam_check.jpg")
+            print(f"  ✓ face cam at {box.x},{box.y} {box.w}x{box.h} → check {work/'facecam_check.jpg'}")
+            return box
+    print("  no face cam found → speaker tracking / centre crop")
+    cache.write_text('{"none": true}')
+    return "none"
 
 
 def _render_parts(c, segs, out_path: Path, opt, work: Path, meta: dict | None, src: Path | None) -> dict:
@@ -237,6 +285,10 @@ def main(argv=None) -> None:
         sp.add_argument("--aspect", default="9:16", help="9:16, 1:1, 4:5, 16:9")
         sp.add_argument("--height", type=int, default=1920)
         sp.add_argument("--layout", choices=["auto", "stack", "track", "center", "fit"], default="auto")
+        sp.add_argument("--facecam", default="auto",
+                        help="streamer cam box: auto | none | x,y,w,h in source pixels")
+        sp.add_argument("--split", type=float, default=0.5,
+                        help="stack layout: gameplay share of the height (0.5 = two equal boxes)")
         sp.add_argument("--style", choices=["pop", "karaoke", "boxed", "minimal"], default="pop")
         sp.add_argument("--font", default=None, help="caption font family")
         sp.add_argument("--no-captions", action="store_true")
