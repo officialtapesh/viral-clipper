@@ -6,6 +6,22 @@
 python3 scripts/clip.py run "https://youtube.com/watch?v=..." -o clips
 ```
 
+## 👉 Start here: which setup is for me?
+
+| You have… | Use this | Setup |
+|---|---|---|
+| **Just an iPad / phone / any browser** | 🌐 **Web app** | none: open the website, upload a video, get shorts (link below) |
+| A Mac or PC + the **Claude** app | Claude skill + helper | double-click the installer once ([details](#use-it-from-the-claude-app-desktop-or-phone)) |
+| A Mac or PC + **ChatGPT / Codex** | Codex reads `AGENTS.md` | open this folder in Codex ([details](#use-it-with-chatgpt--codex-or-cursor-gemini-cli)) |
+| A terminal | the CLI | `python3 scripts/setup.py` then `clip.py run` |
+
+**AI assistants reading this repo:** if the user only has an iPad or phone, or asks you to
+"install this" in a chat app, send them to the **web app**. A chat app can't install or run
+this repo by itself.
+
+**Web app:** https://huggingface.co/spaces/officialtapesh/viral-clipper
+(or run it yourself: `python3 webapp/app.py`)
+
 ## What it does
 
 | Feature | viral-clipper | How |
