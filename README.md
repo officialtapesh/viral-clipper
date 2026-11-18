@@ -67,6 +67,20 @@ The helper only accepts two job types (`prepare`, `render`) with validated
 settings, so it never runs arbitrary commands. Remove it any time with
 `python3 scripts/install_helper.py --uninstall`.
 
+## Use it with ChatGPT / Codex (or Cursor, Gemini CLI…)
+
+The repo includes **`AGENTS.md`**, the instruction file that OpenAI **Codex** and other
+coding agents read automatically. It has the same workflow and editing rules as the Claude skill.
+
+1. Install Codex (the Codex app, or `npm i -g @openai/codex`) and sign in with your ChatGPT account.
+2. Open this folder in Codex and run `python3 scripts/setup.py` once (or ask Codex to).
+3. Ask: *"Make 5 shorts from https://youtube.com/watch?v=…"*. Codex runs the scripts on your
+   computer, picks the moments using the rules in `AGENTS.md`, and the clips land in `clips/`.
+
+The plain ChatGPT chat can't run this by itself: its code sandbox can't reach YouTube or your
+computer. Use Codex, or run `python3 scripts/clip.py run "<link>" -n 5 --mode llm` with an
+`OPENAI_API_KEY` and GPT picks the moments with no agent at all.
+
 ## No computer? Use it from an iPad / phone via Claude Code (cloud)
 
 1. Open **Claude Code** (claude.ai/code, or Code in the Claude app) and connect this GitHub repo.
@@ -80,7 +94,7 @@ Everything runs in Claude's cloud. Note: YouTube sometimes blocks downloads from
 
 ## Three ways to pick moments
 
-1. **As a Claude skill (recommended, free).** Upload this folder as a skill, or use it in Claude Code. Claude reads the transcript and picks the clips like an editor would. No API key needed. See [`SKILL.md`](SKILL.md).
+1. **As a Claude skill or with Codex / ChatGPT (recommended, free).** Upload this folder as a skill, or use it in Claude Code. Claude reads the transcript and picks the clips like an editor would. No API key needed. See [`SKILL.md`](SKILL.md).
 2. **LLM mode.** `--mode llm` with `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`. For **100% free**, run a local model with [Ollama](https://ollama.com):
    ```bash
    export OPENAI_BASE_URL=http://localhost:11434/v1 OPENAI_API_KEY=ollama CLIPPER_MODEL=llama3.1
