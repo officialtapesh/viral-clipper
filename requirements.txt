@@ -1,0 +1,7 @@
+faster-whisper>=1.0
+opencv-python-headless>=4.8,<5
+numpy>=1.24
+yt-dlp>=2024.1
+# optional, for --mode llm
+anthropic>=0.40
+openai>=1.40
