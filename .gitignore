@@ -9,3 +9,4 @@ clips/
 work/
 .uv-bootstrap/
 jobs/
+!tests/sample_talk.mp4
